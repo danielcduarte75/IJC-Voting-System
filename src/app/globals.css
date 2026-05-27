@@ -876,7 +876,6 @@ ul, ol {
 
 /* Staggered children animation */
 .stagger-children > * {
-  opacity: 0;
   animation: slideUp var(--transition-slow) ease-out forwards;
 }
 
