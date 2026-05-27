@@ -240,14 +240,14 @@ export default function SessionDetailPage() {
 
   // ─── Fetch results when tab switches or session deactivated ───
   useEffect(() => {
-    if (activeTab === 'results' && session && !session.is_active) {
+    if (activeTab === 'results' && session && !session?.is_active) {
       fetchResults();
     }
   }, [activeTab, session, fetchResults]);
 
   // ─── Toggle session active/inactive ───
   async function toggleSession() {
-    if (session.is_active) {
+    if (session?.is_active) {
       setShowDeactivateModal(true);
       return;
     }
@@ -379,9 +379,9 @@ export default function SessionDetailPage() {
           </Link>
           <div className="session-title-group">
             <h1>
-              {session.title}
-              <span className={`badge ${session.is_active ? 'badge-success' : 'badge-danger'}`}>
-                {session.is_active ? 'Ativa' : 'Encerrada'}
+              {session?.title}
+              <span className={`badge ${session?.is_active ? 'badge-success' : 'badge-danger'}`}>
+                {session?.is_active ? 'Ativa' : 'Encerrada'}
               </span>
             </h1>
           </div>
@@ -390,10 +390,10 @@ export default function SessionDetailPage() {
         <div className="session-header-actions">
           <div className="toggle-wrapper">
             <span className="toggle-label">
-              {session.is_active ? 'Ativa' : 'Inativa'}
+              {session?.is_active ? 'Ativa' : 'Inativa'}
             </span>
             <button
-              className={`toggle-switch ${session.is_active ? 'active' : ''}`}
+              className={`toggle-switch ${session?.is_active ? 'active' : ''}`}
               onClick={toggleSession}
               disabled={toggling}
               aria-label="Toggle session"
@@ -430,8 +430,8 @@ export default function SessionDetailPage() {
         <button
           className={`tab-btn ${activeTab === 'results' ? 'active' : ''}`}
           onClick={() => setActiveTab('results')}
-          disabled={session.is_active}
-          title={session.is_active ? 'Encerre a votação para ver os resultados' : ''}
+          disabled={session?.is_active}
+          title={session?.is_active ? 'Encerre a votação para ver os resultados' : ''}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -454,7 +454,7 @@ export default function SessionDetailPage() {
             liveFeed={liveFeed}
             voteAnimating={voteAnimating}
             formatTime={formatTime}
-            isActive={session.is_active}
+            isActive={session?.is_active}
           />
         )}
 
@@ -713,7 +713,7 @@ function TokensTab({
    ═══════════════════════════════════ */
 
 function ResultsTab({ session, results, loadingResults }) {
-  if (session.is_active) {
+  if (session?.is_active) {
     return (
       <div className="card results-locked">
         <div className="results-locked-icon">🔒</div>
