@@ -104,7 +104,7 @@ export default function AdminLayout({ children }) {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <img src="/logo-ijc.png" alt="IJC" />
+        <img src="/logo.png" alt="IJC" style={{ height: '48px' }} />
       </div>
 
       {/* Sidebar overlay for mobile */}
@@ -115,8 +115,8 @@ export default function AdminLayout({ children }) {
 
       {/* Sidebar */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="admin-sidebar-header">
-          <img src="/logo-ijc.png" alt="IJC" />
+        <div className="admin-sidebar-header" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '32px 24px 20px', gap: '12px' }}>
+          <img src="/logo.png" alt="IJC" style={{ height: '64px', width: 'auto' }} />
           <div className="admin-sidebar-brand">
             IJC Voting
             <span>Painel de Gestão</span>

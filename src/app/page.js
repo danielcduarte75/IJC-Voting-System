@@ -65,8 +65,9 @@ export default function HomePage() {
 
         .landing-logo {
           display: flex;
-          align-items: center;
-          gap: var(--space-md);
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
           text-decoration: none;
         }
 
@@ -314,10 +315,10 @@ export default function HomePage() {
           <div className="container landing-nav-inner">
             <div className="landing-logo">
               <Image
-                src="/logo-ijc.png"
+                src="/logo.png"
                 alt="IJC Logo"
-                width={40}
-                height={40}
+                width={80}
+                height={80}
                 className="landing-logo-img"
                 priority
               />

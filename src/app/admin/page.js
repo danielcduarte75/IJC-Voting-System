@@ -131,7 +131,7 @@ export default function AdminDashboard() {
               <div className="session-card-stats">
                 <div className="session-stat">
                   <span className="session-stat-label">Votos</span>
-                  <span className="session-stat-value">{session.voteCount}</span>
+                  <span className="session-stat-value">{session.usedTokens}</span>
                 </div>
                 <div className="session-stat">
                   <span className="session-stat-label">Tokens</span>

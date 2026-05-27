@@ -137,10 +137,10 @@ export default function VotePage({ params }) {
           <div className="container vote-header-inner">
             <div className="vote-header-logo">
               <Image
-                src="/logo-ijc.png"
+                src="/logo.png"
                 alt="IJC"
-                width={32}
-                height={32}
+                width={64}
+                height={64}
                 className="vote-logo-img"
               />
               <span className="vote-logo-text">IJC Voting</span>
@@ -528,8 +528,9 @@ function PageStyles() {
 
       .vote-header-logo {
         display: flex;
-        align-items: center;
-        gap: var(--space-sm);
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
       }
 
       .vote-logo-img {

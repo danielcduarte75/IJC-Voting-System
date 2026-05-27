@@ -41,7 +41,7 @@ export default function AdminLoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <img src="/logo-ijc.png" alt="IJC Logo" />
+          <img src="/logo.png" alt="IJC Logo" style={{ height: '80px', width: 'auto' }} />
         </div>
         <h1 className="login-title">Painel de Administração</h1>
         <p className="login-subtitle">Inicie sessão para gerir votações</p>
