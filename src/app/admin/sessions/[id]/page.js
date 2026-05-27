@@ -17,7 +17,7 @@ export default function SessionDetailPage() {
   const [toggling, setToggling] = useState(false);
 
   // Monitor state
-  const [voteCount, setVoteCount] = useState(0);
+  const [categoryVotes, setCategoryVotes] = useState([]);
   const [usedTokens, setUsedTokens] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   const [liveFeed, setLiveFeed] = useState([]);
@@ -74,15 +74,33 @@ export default function SessionDetailPage() {
     setUsedTokens((data || []).filter((t) => t.is_used).length);
   }, [sessionId]);
 
-  // ─── Fetch vote count ───
-  const fetchVoteCount = useCallback(async () => {
+  // ─── Fetch category vote counts ───
+  const fetchCategoryVotes = useCallback(async () => {
     const supabase = createClient();
-    const { count } = await supabase
+    
+    const { data: cats } = await supabase
+      .from('voting_categories')
+      .select('id, name, display_order')
+      .eq('session_id', sessionId)
+      .order('display_order');
+      
+    const { data: votesData } = await supabase
       .from('votes')
-      .select('*', { count: 'exact', head: true })
+      .select('category_id')
       .eq('session_id', sessionId);
 
-    setVoteCount(count || 0);
+    const counts = {};
+    (votesData || []).forEach(v => {
+      counts[v.category_id] = (counts[v.category_id] || 0) + 1;
+    });
+
+    const formatted = (cats || []).map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      count: counts[cat.id] || 0
+    }));
+
+    setCategoryVotes(formatted);
   }, [sessionId]);
 
   // ─── Fetch results ───
@@ -99,42 +117,24 @@ export default function SessionDetailPage() {
       return;
     }
 
-    // Group by category
-    const grouped = {};
-    (data || []).forEach((row) => {
-      if (!grouped[row.category_id]) {
-        grouped[row.category_id] = {
-          category_id: row.category_id,
-          category_name: row.category_name,
-          display_order: row.category_display_order ?? row.display_order ?? 0,
-          options: [],
-          totalVotes: 0,
-        };
-      }
-      grouped[row.category_id].options.push({
-        option_id: row.option_id,
-        option_name: row.option_name,
-        vote_count: row.vote_count || 0,
-      });
-      grouped[row.category_id].totalVotes += row.vote_count || 0;
+    // data is an array of categories with nested options
+    const categoriesList = (data || []).map((cat) => {
+      const options = cat.options || [];
+      const totalVotes = options.reduce((sum, o) => sum + (o.vote_count || 0), 0);
+      const maxVotes = options.length > 0 ? Math.max(...options.map((o) => o.vote_count || 0)) : 0;
+      
+      return {
+        ...cat,
+        totalVotes,
+        options: options.map((o) => ({
+          ...o,
+          isWinner: (o.vote_count || 0) === maxVotes && maxVotes > 0,
+          percentage: totalVotes > 0
+            ? Math.round(((o.vote_count || 0) / totalVotes) * 100)
+            : 0,
+        })),
+      };
     });
-
-    // Sort categories and find winners
-    const categoriesList = Object.values(grouped)
-      .sort((a, b) => a.display_order - b.display_order)
-      .map((cat) => {
-        const maxVotes = Math.max(...cat.options.map((o) => o.vote_count));
-        return {
-          ...cat,
-          options: cat.options.map((o) => ({
-            ...o,
-            isWinner: o.vote_count === maxVotes && maxVotes > 0,
-            percentage: cat.totalVotes > 0
-              ? Math.round((o.vote_count / cat.totalVotes) * 100)
-              : 0,
-          })),
-        };
-      });
 
     setResults(categoriesList);
     setLoadingResults(false);
@@ -158,11 +158,11 @@ export default function SessionDetailPage() {
     async function init() {
       await fetchSession();
       await fetchTokens();
-      await fetchVoteCount();
+      await fetchCategoryVotes();
       setLoading(false);
     }
     init();
-  }, [fetchSession, fetchTokens, fetchVoteCount]);
+  }, [fetchSession, fetchTokens, fetchCategoryVotes]);
 
   // Build feed when tokens load
   useEffect(() => {
@@ -192,8 +192,8 @@ export default function SessionDetailPage() {
             );
             setUsedTokens((prev) => prev + 1);
 
-            // Refresh vote count
-            fetchVoteCount();
+            // Refresh category votes
+            fetchCategoryVotes();
 
             // Add to live feed
             const entry = {
@@ -236,7 +236,7 @@ export default function SessionDetailPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [sessionId, fetchVoteCount, fetchTokens]);
+  }, [sessionId, fetchCategoryVotes, fetchTokens]);
 
   // ─── Fetch results when tab switches or session deactivated ───
   useEffect(() => {
@@ -278,6 +278,28 @@ export default function SessionDetailPage() {
       setSession((prev) => ({ ...prev, is_active: false }));
     }
     setToggling(false);
+  }
+
+  // ─── Delete session ───
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('voting_sessions')
+      .delete()
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error('Error deleting session:', error);
+      showToast('Erro ao apagar votação', 'error');
+      setDeleting(false);
+      setShowDeleteModal(false);
+    } else {
+      router.push('/admin');
+    }
   }
 
   // ─── Generate tokens ───
@@ -388,7 +410,7 @@ export default function SessionDetailPage() {
         </div>
 
         <div className="session-header-actions">
-          <div className="toggle-wrapper">
+          <div className="toggle-wrapper" style={{ marginRight: '16px' }}>
             <span className="toggle-label">
               {session?.is_active ? 'Ativa' : 'Inativa'}
             </span>
@@ -399,6 +421,20 @@ export default function SessionDetailPage() {
               aria-label="Toggle session"
             />
           </div>
+          
+          <button 
+            className="btn btn-secondary" 
+            style={{ color: 'var(--danger)', borderColor: 'var(--gray-200)', padding: '0 12px' }}
+            onClick={() => setShowDeleteModal(true)}
+            title="Apagar Votação"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -448,7 +484,7 @@ export default function SessionDetailPage() {
       <div className="tab-content">
         {activeTab === 'monitor' && (
           <MonitorTab
-            voteCount={voteCount}
+            categoryVotes={categoryVotes}
             usedTokens={usedTokens}
             totalTokens={totalTokens}
             liveFeed={liveFeed}
@@ -484,23 +520,49 @@ export default function SessionDetailPage() {
       {/* Deactivate Modal */}
       {showDeactivateModal && (
         <div className="modal-overlay" onClick={() => setShowDeactivateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-icon">⚠️</div>
-            <h2 className="modal-title">Encerrar Votação?</h2>
-            <p className="modal-message">
-              Ao encerrar a votação, nenhum novo voto poderá ser registado.
-              Os tokens não utilizados serão invalidados. Esta ação pode ser revertida
-              ao reativar a sessão.
-            </p>
-            <div className="modal-actions">
-              <button
-                className="btn btn-ghost"
-                onClick={() => setShowDeactivateModal(false)}
-              >
+          <div className="modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Encerrar Votação?</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                Tem a certeza que deseja encerrar esta votação?
+                <br />
+                Os resultados ficarão disponíveis e nenhum eleitor poderá continuar a votar, mesmo que tenha um token válido.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowDeactivateModal(false)}>
                 Cancelar
               </button>
-              <button className="btn btn-danger" onClick={confirmDeactivate}>
-                Encerrar Votação
+              <button className="btn btn-danger" onClick={confirmDeactivate} disabled={toggling}>
+                {toggling ? 'A Encerrar...' : 'Sim, Encerrar Votação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ color: 'var(--danger)' }}>Apagar Votação?</h3>
+            </div>
+            <div className="modal-body">
+              <p>
+                Tem <strong>absoluta certeza</strong> que deseja apagar esta votação de forma permanente?
+                <br /><br />
+                Todos os tokens, votos e resultados associados serão apagados. Esta ação é irreversível.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}>
+                Cancelar
+              </button>
+              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'A Apagar...' : 'Apagar Permanentemente'}
               </button>
             </div>
           </div>
@@ -522,13 +584,13 @@ export default function SessionDetailPage() {
    Monitor Tab Component
    ═══════════════════════════════════ */
 
-function MonitorTab({ voteCount, usedTokens, totalTokens, liveFeed, voteAnimating, formatTime, isActive }) {
+function MonitorTab({ categoryVotes, usedTokens, totalTokens, liveFeed, voteAnimating, formatTime, isActive }) {
   return (
     <div>
       <div className="monitor-stats">
         <div className="monitor-stat-card highlight">
           <div className={`monitor-stat-value ${voteAnimating ? 'animate' : ''}`}>
-            {voteCount}
+            {usedTokens}
           </div>
           <div className="monitor-stat-label">Votos Registados</div>
         </div>
@@ -547,6 +609,22 @@ function MonitorTab({ voteCount, usedTokens, totalTokens, liveFeed, voteAnimatin
           <div className="monitor-stat-label">Taxa de Participação</div>
         </div>
       </div>
+
+      {categoryVotes.length > 0 && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="form-section-title" style={{ marginBottom: 16 }}>Votos por Categoria</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+            {categoryVotes.map(cat => (
+              <div key={cat.id} className="monitor-stat-card" style={{ padding: '16px 12px' }}>
+                <div className="monitor-stat-value" style={{ fontSize: '1.5rem', color: 'var(--gray-700)' }}>
+                  {cat.count} <span style={{ fontSize: '0.9rem', color: 'var(--gray-400)', fontWeight: 'normal' }}>/ {usedTokens}</span>
+                </div>
+                <div className="monitor-stat-label" style={{ fontSize: '0.8rem' }}>{cat.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="live-feed">
         <div className="live-feed-header">
