@@ -140,18 +140,35 @@ export default function SessionDetailPage() {
     setLoadingResults(false);
   }, [sessionId]);
 
-  // ─── Build initial live feed from used tokens ───
-  const buildInitialFeed = useCallback((tokensList) => {
+  // ─── Build initial live feed from used tokens and logs ───
+  const buildInitialFeed = useCallback(async (tokensList) => {
+    const supabase = createClient();
+    
+    // Fetch logs
+    const { data: logs } = await supabase
+      .from('session_logs')
+      .select('*')
+      .eq('session_id', sessionId);
+
+    const logEntries = (logs || []).map((l) => ({
+      id: l.id,
+      time: new Date(l.created_at),
+      isNew: false,
+      type: l.action === 'activated' ? 'session_started' : 'session_paused',
+    }));
+
     const usedEntries = tokensList
       .filter((t) => t.is_used && t.used_at)
       .map((t) => ({
         id: t.id,
         time: new Date(t.used_at),
         isNew: false,
-      }))
-      .sort((a, b) => b.time - a.time);
-    setLiveFeed(usedEntries);
-  }, []);
+        type: 'token_used',
+      }));
+
+    const merged = [...logEntries, ...usedEntries].sort((a, b) => b.time - a.time);
+    setLiveFeed(merged);
+  }, [sessionId]);
 
   // ─── Initial load ───
   useEffect(() => {
@@ -166,7 +183,9 @@ export default function SessionDetailPage() {
 
   // Build feed when tokens load
   useEffect(() => {
-    buildInitialFeed(tokens);
+    if (tokens.length >= 0) { // Will run initially even if 0
+      buildInitialFeed(tokens);
+    }
   }, [tokens, buildInitialFeed]);
 
   // ─── Realtime subscription ───
@@ -184,11 +203,11 @@ export default function SessionDetailPage() {
           filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
-          const updated = payload.new;
-          if (updated.is_used) {
+          const newToken = payload.new;
+          if (newToken.is_used) {
             // Update tokens list
             setTokens((prev) =>
-              prev.map((t) => (t.id === updated.id ? updated : t))
+              prev.map((t) => (t.id === newToken.id ? newToken : t))
             );
             setUsedTokens((prev) => prev + 1);
 
@@ -197,9 +216,10 @@ export default function SessionDetailPage() {
 
             // Add to live feed
             const entry = {
-              id: updated.id,
-              time: new Date(updated.used_at || new Date()),
+              id: newToken.id,
+              time: new Date(newToken.used_at),
               isNew: true,
+              type: 'token_used',
             };
             setLiveFeed((prev) => [entry, ...prev]);
 
@@ -227,6 +247,20 @@ export default function SessionDetailPage() {
         () => {
           // New tokens generated, refresh list
           fetchTokens();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'session_logs', filter: `session_id=eq.${sessionId}` },
+        (payload) => {
+          const newLog = payload.new;
+          const entry = {
+            id: newLog.id,
+            time: new Date(newLog.created_at),
+            isNew: true,
+            type: newLog.action === 'activated' ? 'session_started' : 'session_paused',
+          };
+          setLiveFeed((prev) => [entry, ...prev]);
         }
       )
       .subscribe();
@@ -261,6 +295,11 @@ export default function SessionDetailPage() {
 
     if (!error) {
       setSession((prev) => ({ ...prev, is_active: true }));
+      // Guarda a log
+      await supabase.from('session_logs').insert({
+        session_id: sessionId,
+        action: 'activated'
+      });
     }
     setToggling(false);
   }
@@ -276,6 +315,11 @@ export default function SessionDetailPage() {
 
     if (!error) {
       setSession((prev) => ({ ...prev, is_active: false }));
+      // Guarda a log
+      await supabase.from('session_logs').insert({
+        session_id: sessionId,
+        action: 'deactivated'
+      });
     }
     setToggling(false);
   }
@@ -657,16 +701,45 @@ function MonitorTab({ categoryVotes, usedTokens, totalTokens, liveFeed, voteAnim
               </p>
             </div>
           ) : (
-            liveFeed.map((entry, idx) => (
-              <div
-                key={`${entry.id}-${idx}`}
-                className={`live-feed-item ${entry.isNew ? 'new' : ''}`}
-              >
-                <span className="live-feed-icon">🗳️</span>
-                <span>Token utilizado às</span>
-                <span className="live-feed-time">{formatTime(entry.time)}</span>
-              </div>
-            ))
+            liveFeed.map((entry, idx) => {
+              if (entry.type === 'token_used') {
+                return (
+                  <div
+                    key={`${entry.id}-${idx}`}
+                    className={`live-feed-item ${entry.isNew ? 'new' : ''}`}
+                  >
+                    <span className="live-feed-icon">🗳️</span>
+                    <span>Token utilizado às</span>
+                    <span className="live-feed-time">{formatTime(entry.time)}</span>
+                  </div>
+                );
+              } else if (entry.type === 'session_started') {
+                return (
+                  <div
+                    key={`${entry.id}-${idx}`}
+                    className={`live-feed-item ${entry.isNew ? 'new' : ''}`}
+                    style={{ background: 'var(--primary-light)', borderColor: 'var(--primary-light)' }}
+                  >
+                    <span className="live-feed-icon">🟢</span>
+                    <span style={{ fontWeight: 500, color: 'var(--primary-dark)' }}>Sessão de Votação Aberta às</span>
+                    <span className="live-feed-time" style={{ color: 'var(--primary-dark)' }}>{formatTime(entry.time)}</span>
+                  </div>
+                );
+              } else if (entry.type === 'session_paused') {
+                return (
+                  <div
+                    key={`${entry.id}-${idx}`}
+                    className={`live-feed-item ${entry.isNew ? 'new' : ''}`}
+                    style={{ background: '#fef2f2', borderColor: '#fef2f2' }}
+                  >
+                    <span className="live-feed-icon">🔴</span>
+                    <span style={{ fontWeight: 500, color: 'var(--danger)' }}>Sessão de Votação Suspensa/Fechada às</span>
+                    <span className="live-feed-time" style={{ color: 'var(--danger)' }}>{formatTime(entry.time)}</span>
+                  </div>
+                );
+              }
+              return null;
+            })
           )}
         </div>
       </div>
