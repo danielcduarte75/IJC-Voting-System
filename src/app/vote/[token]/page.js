@@ -137,7 +137,7 @@ export default function VotePage({ params }) {
           <div className="container vote-header-inner">
             <div className="vote-header-logo">
               <Image
-                src="/logo.png"
+                src="/logo-ijc.png"
                 alt="IJC"
                 width={64}
                 height={64}
