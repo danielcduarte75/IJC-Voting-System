@@ -80,21 +80,45 @@ export default function NewSessionPage() {
       setError('Adicione pelo menos uma categoria.');
       return false;
     }
+
+    const catNames = new Set();
+
     for (let i = 0; i < categories.length; i++) {
       const cat = categories[i];
-      if (!cat.name.trim()) {
+      const catNameTrimmed = cat.name.trim();
+
+      if (!catNameTrimmed) {
         setError(`A categoria ${i + 1} precisa de um nome.`);
         return false;
       }
-      if (cat.options.length < 2) {
-        setError(`A categoria "${cat.name}" precisa de pelo menos 2 opções.`);
+
+      const lowerCatName = catNameTrimmed.toLowerCase();
+      if (catNames.has(lowerCatName)) {
+        setError(`A categoria "${catNameTrimmed}" está duplicada. Os nomes das categorias têm de ser únicos.`);
         return false;
       }
+      catNames.add(lowerCatName);
+
+      if (cat.options.length < 2) {
+        setError(`A categoria "${catNameTrimmed}" precisa de pelo menos 2 opções.`);
+        return false;
+      }
+
+      const optNames = new Set();
       for (let j = 0; j < cat.options.length; j++) {
-        if (!cat.options[j].name.trim()) {
-          setError(`Todas as opções da categoria "${cat.name}" precisam de um nome.`);
+        const optNameTrimmed = cat.options[j].name.trim();
+
+        if (!optNameTrimmed) {
+          setError(`Todas as opções da categoria "${catNameTrimmed}" precisam de um nome.`);
           return false;
         }
+
+        const lowerOptName = optNameTrimmed.toLowerCase();
+        if (optNames.has(lowerOptName)) {
+          setError(`A opção "${optNameTrimmed}" está duplicada na categoria "${catNameTrimmed}".`);
+          return false;
+        }
+        optNames.add(lowerOptName);
       }
     }
     return true;
