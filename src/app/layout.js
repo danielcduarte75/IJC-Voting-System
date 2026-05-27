@@ -20,7 +20,7 @@ export const metadata = {
   description:
     "Sistema de votação seguro e transparente da ISCTE Junior Consulting. Vote de forma simples e confidencial.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/logo.png",
   },
 };
 
