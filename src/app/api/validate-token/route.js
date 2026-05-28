@@ -24,11 +24,9 @@ export async function POST(request) {
 
     const supabase = await createClient()
 
-    // Look up the token
+    // Look up the token securely bypassing RLS
     const { data: tokenData, error: tokenError } = await supabase
-      .from('voting_tokens')
-      .select('id, token, session_id, is_used, used_at, expires_at, label')
-      .eq('token', token)
+      .rpc('get_token_info', { p_token: token })
       .single()
 
     if (tokenError || !tokenData) {
